@@ -1,9 +1,9 @@
 """
-Net Monitor v3 — Single line floating widget
+Net Monitor v5 — Single line floating widget with system tray
 ● UP: x KB/s    DN: x KB/s
 Developed for: Global Mediklaud (BD) Ltd. Team
 Developed By: sayeed.ttian (Github)
-Voice + tone alerts, dual-ping, offline timer
+Voice + tone alerts, dual-ping, offline timer, system tray, persistent position
 """
 
 __author__  = "Kazi Abu Sayeed"
@@ -17,6 +17,10 @@ import threading
 import socket
 import subprocess
 import sys
+import json
+import os
+from pathlib import Path
+from ctypes import windll, Structure, c_int, c_void_p, POINTER
 
 try:
     import winsound
@@ -29,6 +33,13 @@ try:
     PLYER = True
 except ImportError:
     PLYER = False
+
+try:
+    import pystray
+    from PIL import Image, ImageDraw
+    PYSTRAY = True
+except ImportError:
+    PYSTRAY = False
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 CHECK_INTERVAL = 2      # seconds between internet checks
@@ -58,6 +69,42 @@ C_YELLOW  = "#ffca28"
 C_RED     = "#ff4757"
 C_TEXT    = "#c8c8e0"
 
+CONFIG_FILE = Path(__file__).parent / "net_monitor_config.json"
+
+# Windows API structures
+class POINT(Structure):
+    _fields_ = [("x", c_int), ("y", c_int)]
+
+class RECT(Structure):
+    _fields_ = [("left", c_int), ("top", c_int), ("right", c_int), ("bottom", c_int)]
+
+SWP_NOSIZE = 0x0001
+SWP_NOZORDER = 0x0004
+HWND_TOPMOST = c_void_p(-1)
+
+# ── Config Management ──────────────────────────────────────────────────────────
+def load_config():
+    """Load window position and settings from config file."""
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "window_x": None,
+        "window_y": None,
+        "mini_mode": False,
+        "transparency": 0.95
+    }
+
+def save_config(config):
+    """Save window position and settings to config file."""
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        pass
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 def fmt(bps):
@@ -119,6 +166,17 @@ def push_notify(title, msg):
     except Exception:
         pass
 
+def create_tray_icon():
+    """Create a system tray icon."""
+    if not PYSTRAY:
+        return None
+    try:
+        image = Image.new('RGB', (64, 64), color='white')
+        draw = ImageDraw.Draw(image)
+        draw.ellipse([8, 8, 56, 56], fill='#4e9af1', outline='#0f0f1a', width=2)
+        return image
+    except Exception:
+        return None
 
 # ── Main App ──────────────────────────────────────────────────────────────────
 class NetMonitor:
@@ -136,12 +194,20 @@ class NetMonitor:
         self._prev_t       = time.time()
         self._full_w       = 260
         self._h            = 26
+        self._config       = load_config()
+        self._tray_icon    = None
 
         self._build_window()
         self._build_ui()
+        self._setup_tray()
+
         threading.Thread(target=self._bg_loop, daemon=True).start()
         self._tick()
-        self.root.mainloop()
+
+        try:
+            self.root.mainloop()
+        finally:
+            self._cleanup()
 
     # ── Window ────────────────────────────────────────────────────────────────
     def _build_window(self):
@@ -149,25 +215,35 @@ class NetMonitor:
         root.overrideredirect(True)
         root.attributes("-topmost", True)
         try:
-            root.attributes("-alpha", 0.95)
+            root.attributes("-alpha", self._config.get("transparency", 0.95))
         except Exception:
             pass
         root.configure(bg=C_BG)
 
         sw = root.winfo_screenwidth()
         sh = root.winfo_screenheight()
-        x  = sw - self._full_w - 20
-        y  = sh - self._h - 60
+
+        # Load saved position or use default
+        x = self._config.get("window_x")
+        y = self._config.get("window_y")
+        if x is None or y is None:
+            x = sw - self._full_w - 20
+            y = sh - self._h - 60
+
         root.geometry(f"{self._full_w}x{self._h}+{x}+{y}")
 
         self._menu = tk.Menu(root, tearoff=0, bg="#1a1a30", fg="white",
                              activebackground="#2a2a50", activeforeground="white",
                              font=("Segoe UI", 9))
-        self._menu.add_command(label="  Net Monitor v3", state="disabled")
+        self._menu.add_command(label="  Net Monitor v5", state="disabled")
+        self._menu.add_separator()
+        self._menu.add_command(label="  Hide", command=self._hide_window)
         self._menu.add_separator()
         self._menu.add_command(label="  Quit", command=self._quit)
 
         root.bind("<Button-3>", self._show_menu)
+        root.protocol("WM_DELETE_WINDOW", self._quit)
+
         self.root = root
 
     # ── UI ────────────────────────────────────────────────────────────────────
@@ -222,13 +298,6 @@ class NetMonitor:
         self._tbtn.pack(side="right", padx=(2, 0))
         self._tbtn.bind("<Button-1>", lambda e: self._toggle_mini())
 
-        # ⠿ Resize grip (bottom-right corner)
-        self._grip = tk.Label(self.root, text="⠿", bg=C_BG, fg=C_MUTED,
-                              font=("Segoe UI", 7), cursor="sizing")
-        self._grip.place(relx=1.0, rely=1.0, anchor="se")
-        self._grip.bind("<Button-1>",  self._resize_start)
-        self._grip.bind("<B1-Motion>", self._resize_drag)
-
     # ── Mini toggle ───────────────────────────────────────────────────────────
     def _toggle_mini(self):
         self.mini_mode = not self.mini_mode
@@ -240,6 +309,8 @@ class NetMonitor:
             self._spd.pack(side="left", fill="x", expand=True)
             self._tbtn.config(text="◀")
             self.root.geometry(f"{self._full_w}x{self._h}")
+        self._config["mini_mode"] = self.mini_mode
+        save_config(self._config)
 
     # ── Drag ──────────────────────────────────────────────────────────────────
     def _drag_start(self, e):
@@ -250,20 +321,65 @@ class NetMonitor:
         y = self.root.winfo_y() + e.y - self._oy
         self.root.geometry(f"+{x}+{y}")
 
-    # ── Resize ────────────────────────────────────────────────────────────────
-    def _resize_start(self, e):
-        self._rx = e.x_root
-        self._ry = e.y_root
-        self._rw = self.root.winfo_width()
-        self._rh = self.root.winfo_height()
-
-    def _resize_drag(self, e):
-        nw = max(100, self._rw + (e.x_root - self._rx))
-        nh = max(20,  self._rh + (e.y_root - self._ry))
-        self.root.geometry(f"{nw}x{nh}")
+        self._config["window_x"] = x
+        self._config["window_y"] = y
 
     def _show_menu(self, e):
         self._menu.post(e.x_root, e.y_root)
+
+    # ── System Tray ───────────────────────────────────────────────────────────
+    def _setup_tray(self):
+        """Setup system tray icon with menu."""
+        if not PYSTRAY:
+            return
+
+        try:
+            icon_image = create_tray_icon()
+            if icon_image is None:
+                return
+
+            menu = pystray.Menu(
+                pystray.MenuItem("Show", lambda: self._show_window()),
+                pystray.MenuItem("Hide", lambda: self._hide_window()),
+                pystray.MenuItem("Quit", lambda: self._quit())
+            )
+
+            self._tray_icon = pystray.Icon(
+                "NetMonitor",
+                icon_image,
+                "Net Monitor v5",
+                menu
+            )
+
+            threading.Thread(target=self._tray_icon.run, daemon=True).start()
+        except Exception as e:
+            pass
+
+    def _show_window(self):
+        """Show the window and bring it to foreground."""
+        self.root.deiconify()
+        self.root.attributes("-topmost", True)
+        self.root.lift()
+        self.root.focus()
+        self._keep_window_visible()
+
+    def _hide_window(self):
+        """Hide window to system tray."""
+        self.root.withdraw()
+
+    def _keep_window_visible(self):
+        """Use Windows API to keep window always visible."""
+        try:
+            hwnd = windll.kernel32.GetForegroundWindow()
+            if hwnd:
+                windll.user32.SetWindowPos(
+                    c_void_p(hwnd),
+                    HWND_TOPMOST,
+                    0, 0, 0, 0,
+                    SWP_NOSIZE | SWP_NOZORDER
+                )
+        except Exception:
+            pass
 
     # ── Background monitor thread ─────────────────────────────────────────────
     def _bg_loop(self):
@@ -300,7 +416,7 @@ class NetMonitor:
                             msg = "Back online"
                         self.offline_since = None
                         play_tone(TONE_RECONNECT)
-                        threading.Timer(0.9, lambda: speak("Medi Cloud Connecttion Reconnected")).start()
+                        threading.Timer(0.9, lambda: speak("Medi Cloud Connection Reconnected")).start()
                         push_notify("✅ Internet Reconnected", msg)
                 else:
                     self.fail_count += 1
@@ -310,7 +426,7 @@ class NetMonitor:
                         self.online        = False
                         self.offline_since = time.time()
                         play_tone(TONE_DISCONNECT)
-                        threading.Timer(0.9, lambda: speak("Medi Cloud Connecttion disconnected")).start()
+                        threading.Timer(0.9, lambda: speak("Medi Cloud Connection disconnected")).start()
                         push_notify("❌ Internet Disconnected",
                                     "Connection lost. Monitoring for reconnect...")
 
@@ -330,11 +446,36 @@ class NetMonitor:
         else:
             self._up.config(text="OFFLINE", fg=C_RED)
             self._dn.config(text="OFFLINE", fg=C_RED)
+
+        if self.root.state() == 'normal':
+            self._keep_window_visible()
+
         self.root.after(UPDATE_MS, self._tick)
+
+    def _cleanup(self):
+        """Cleanup before exit."""
+        self.running = False
+        try:
+            self._config["window_x"] = self.root.winfo_x()
+            self._config["window_y"] = self.root.winfo_y()
+            self._config["mini_mode"] = self.mini_mode
+            save_config(self._config)
+        except Exception:
+            pass
+
+        if self._tray_icon:
+            try:
+                self._tray_icon.stop()
+            except Exception:
+                pass
 
     def _quit(self):
         self.running = False
-        self.root.destroy()
+        try:
+            self.root.destroy()
+        except Exception:
+            pass
+        sys.exit(0)
 
 
 if __name__ == "__main__":

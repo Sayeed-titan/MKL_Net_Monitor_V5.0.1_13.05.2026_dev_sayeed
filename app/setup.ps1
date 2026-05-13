@@ -1,7 +1,7 @@
-﻿# Net Monitor v3 - Installer
-# Run via START.bat
+﻿# Net Monitor v5 - Installer
+# Run via INSTALL.bat
 
-$Host.UI.RawUI.WindowTitle = "Net Monitor Setup"
+$Host.UI.RawUI.WindowTitle = "Net Monitor v5 Setup"
 $ErrorActionPreference = "Continue"
 
 Get-ChildItem -Path $PSScriptRoot -ErrorAction SilentlyContinue | ForEach-Object {
@@ -11,21 +11,21 @@ Get-ChildItem -Path $PSScriptRoot -ErrorAction SilentlyContinue | ForEach-Object
 cls
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Cyan
-Write-Host "      Net Monitor v3  |  Auto Installer      " -ForegroundColor Cyan
+Write-Host "      Net Monitor v5  |  Auto Installer      " -ForegroundColor Cyan
 Write-Host "  ============================================" -ForegroundColor Cyan
 Write-Host ""
 
 $sourceScript = Join-Path $PSScriptRoot "net_monitor.py"
 if (-not (Test-Path $sourceScript)) {
     Write-Host "  ERROR: net_monitor.py not found." -ForegroundColor Red
-    Write-Host "  Keep START.bat, setup.ps1 and net_monitor.py in the same folder." -ForegroundColor Red
+    Write-Host "  File should be in: $PSScriptRoot" -ForegroundColor Red
     Write-Host ""
     Read-Host "  Press Enter to exit"
     exit 1
 }
 
 # --- 1. Find or install Python ---
-Write-Host "  [1/4]  Locating Python..." -ForegroundColor Yellow
+Write-Host "  [1/5]  Locating Python..." -ForegroundColor Yellow
 
 $pythonExe = $null
 
@@ -85,7 +85,7 @@ if (-not (Test-Path $pythonwExe)) { $pythonwExe = $pythonExe }
 
 # --- 2. Copy script ---
 Write-Host ""
-Write-Host "  [2/4]  Copying files..." -ForegroundColor Yellow
+Write-Host "  [2/5]  Copying files..." -ForegroundColor Yellow
 
 $dest   = Join-Path $env:LOCALAPPDATA "NetMonitor"
 $script = Join-Path $dest "net_monitor.py"
@@ -95,13 +95,30 @@ Write-Host "         Saved to: $dest" -ForegroundColor Green
 
 # --- 3. Install packages ---
 Write-Host ""
-Write-Host "  [3/4]  Installing packages..." -ForegroundColor Yellow
-& $pythonExe -m pip install psutil plyer --quiet --no-warn-script-location 2>&1 | Out-Null
-Write-Host "         psutil, plyer installed." -ForegroundColor Green
+Write-Host "  [3/5]  Installing packages..." -ForegroundColor Yellow
+& $pythonExe -m pip install psutil plyer pystray pillow --quiet --no-warn-script-location 2>&1 | Out-Null
+Write-Host "         psutil, plyer, pystray, pillow installed." -ForegroundColor Green
 
-# --- 4. Startup shortcut ---
+# --- 4. Copy config if needed ---
 Write-Host ""
-Write-Host "  [4/4]  Adding to Windows startup..." -ForegroundColor Yellow
+Write-Host "  [4/5]  Setting up configuration..." -ForegroundColor Yellow
+$configFile = Join-Path $dest "net_monitor_config.json"
+if (-not (Test-Path $configFile)) {
+    $defaultConfig = @{
+        window_x = $null
+        window_y = $null
+        mini_mode = $false
+        transparency = 0.95
+    }
+    $defaultConfig | ConvertTo-Json | Set-Content -Path $configFile -Encoding UTF8 -Force
+    Write-Host "         Config file created." -ForegroundColor Green
+} else {
+    Write-Host "         Config file exists (preserved)." -ForegroundColor Green
+}
+
+# --- 5. Startup shortcut ---
+Write-Host ""
+Write-Host "  [5/5]  Adding to Windows startup..." -ForegroundColor Yellow
 
 $startupDir = [Environment]::GetFolderPath("Startup")
 $lnkPath    = Join-Path $startupDir "NetMonitor.lnk"
@@ -113,7 +130,7 @@ try {
     $lnk.Arguments        = "`"$script`""
     $lnk.WorkingDirectory = $dest
     $lnk.WindowStyle      = 7
-    $lnk.Description      = "Net Monitor v3"
+    $lnk.Description      = "Net Monitor v5"
     $lnk.Save()
     Write-Host "         Startup shortcut created." -ForegroundColor Green
 } catch {
@@ -137,13 +154,20 @@ if (-not $running) {
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "     All done!" -ForegroundColor Green
+Write-Host "     All done! Net Monitor v5 installed" -ForegroundColor Green
 Write-Host ""
-Write-Host "     Widget: bottom-right of screen" -ForegroundColor White
-Write-Host "     Move:   drag the bar" -ForegroundColor White
-Write-Host "     Resize: drag bottom-right corner grip" -ForegroundColor White
-Write-Host "     Mini:   click the arrow button" -ForegroundColor White
-Write-Host "     Quit:   right-click the widget" -ForegroundColor White
+Write-Host "     Features:" -ForegroundColor Cyan
+Write-Host "     • Always visible - stays on top when switching tabs" -ForegroundColor White
+Write-Host "     • Fixed size - no resize grip" -ForegroundColor White
+Write-Host "     • Position saved - returns to exact spot on restart" -ForegroundColor White
+Write-Host "     • System tray - access from tray icon" -ForegroundColor White
+Write-Host "     • Mini mode - click arrow to hide/show speeds" -ForegroundColor White
+Write-Host ""
+Write-Host "     Controls:" -ForegroundColor Cyan
+Write-Host "     • Drag:     Move the widget around" -ForegroundColor White
+Write-Host "     • Arrow:    Toggle between full/mini view" -ForegroundColor White
+Write-Host "     • Tray:     Right-click tray icon for menu" -ForegroundColor White
+Write-Host "     • Right:    Right-click widget for quick exit" -ForegroundColor White
 Write-Host ""
 Write-Host "  ============================================" -ForegroundColor Cyan
 Write-Host ""

@@ -1,7 +1,7 @@
 @echo off
-title Net Monitor - Installer
+title Net Monitor v5 - Installer
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "setup.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "app\setup.ps1"
 if %errorlevel% neq 0 (
     echo.
     echo   Something went wrong. Read the red message above.
