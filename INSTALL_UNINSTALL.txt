@@ -1,0 +1,80 @@
+╔══════════════════════════════════════════════════════╗
+║       Net Monitor v3 — Install & Uninstall           ║
+╚══════════════════════════════════════════════════════╝
+
+INSTALL
+───────
+1. Copy this entire folder to your PC
+   (keep all files together — do not move them apart)
+
+2. Double-click  START.bat
+
+3. If Windows shows a security warning → click Run
+   (this happens once because the file was downloaded
+    from the internet — it is safe to proceed)
+
+4. A setup window will open and do everything:
+   - Installs Python if not already on your PC
+   - Copies the app to a permanent location
+   - Installs required packages
+   - Adds Net Monitor to Windows startup
+   - Launches the widget
+
+5. Press Enter when setup completes.
+   The widget appears at the bottom-right of your screen.
+
+Note: If Python needs to be installed, setup may take
+      1-2 minutes depending on your connection speed.
+
+
+WHAT GETS INSTALLED
+───────────────────
+  App folder:  C:\Users\[You]\AppData\Local\NetMonitor\
+  Startup:     C:\Users\[You]\AppData\Roaming\Microsoft\
+               Windows\Start Menu\Programs\Startup\
+               NetMonitor.lnk
+
+Python and pip packages (psutil, plyer) are installed
+to your existing Python installation.
+
+
+UNINSTALL
+─────────
+1. Double-click  UNINSTALL.bat
+
+2. Type  YES  when prompted and press Enter
+
+3. Net Monitor will be stopped and all files removed.
+
+Note: Python itself and pip packages are NOT removed
+      by the uninstaller — only Net Monitor files.
+      To remove Python, use Windows Settings → Apps.
+
+
+TROUBLESHOOTING
+───────────────
+Widget does not appear after install:
+  - Open Command Prompt and run:
+    python "%LOCALAPPDATA%\NetMonitor\net_monitor.py"
+  - Copy the error message and share it for support.
+
+False disconnect alerts:
+  - Check if your router occasionally drops packets.
+  - The widget waits for 2 consecutive failures on
+    both Google and Cloudflare before alerting.
+
+No voice alerts:
+  - Make sure your PC volume is not muted.
+  - Windows Text-to-Speech must be enabled.
+    Go to: Settings → Accessibility → Narrator
+    and make sure speech components are installed.
+
+To move the widget:
+  - Click and drag the bar anywhere on screen.
+
+Widget disappeared:
+  - It may be behind another window.
+  - Right-click your taskbar → Show all windows.
+  - Or restart Net Monitor from the startup folder:
+    Press Win+R, type shell:startup, press Enter,
+    double-click NetMonitor shortcut.

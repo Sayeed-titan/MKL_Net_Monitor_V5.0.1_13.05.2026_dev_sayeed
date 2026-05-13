@@ -1,0 +1,55 @@
+╔══════════════════════════════════════════════════════╗
+║           Net Monitor v3 — How It Works              ║
+╚══════════════════════════════════════════════════════╝
+
+WIDGET
+──────
+A small always-on-top bar appears at the bottom-right
+of your screen showing live network speed:
+
+   ● UP: 1.2 KB/s    DN: 4.5 KB/s  ◀
+
+● STATUS CIRCLE (left dot)
+  Green  — Internet is fast (download above 1 Mbps)
+  Yellow — Internet is slow (below 1 Mbps but connected)
+  Red    — Internet is offline
+
+UP / DN SPEED
+  Updated every second.
+  Shows B/s, KB/s, or MB/s automatically.
+
+◀ ARROW BUTTON (right side)
+  Click once  → Mini mode (just the circle ●)
+  Click again → Full mode (circle + speeds)
+
+MOVING & RESIZING
+  Drag anywhere   → click and drag the bar to move it
+  Resize          → drag the small grip at the bottom-right corner
+  Right-click     → menu with Quit option
+
+
+DISCONNECT ALERTS
+─────────────────
+Net Monitor checks your internet every 5 seconds by
+pinging both Google (8.8.8.8) and Cloudflare (1.1.1.1).
+
+It only alerts if BOTH servers fail TWO times in a row
+(10 seconds total) — this prevents false alarms from
+brief packet loss or a single slow ping.
+
+When internet DROPS:
+  - A low warning tone plays
+  - A voice says "Internet disconnected"
+  - A Windows notification appears
+
+When internet COMES BACK:
+  - A positive tone plays
+  - A voice says "Connection restored"
+  - A notification shows how long you were offline
+    e.g. "Back online — was down 4 min 32 sec"
+
+
+AUTO-START
+──────────
+Net Monitor starts automatically every time Windows
+starts. No need to launch it manually.
