@@ -79,7 +79,8 @@ class RECT(Structure):
     _fields_ = [("left", c_int), ("top", c_int), ("right", c_int), ("bottom", c_int)]
 
 SWP_NOSIZE = 0x0001
-SWP_NOZORDER = 0x0004
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
 HWND_TOPMOST = c_void_p(-1)
 
 # ── Config Management ──────────────────────────────────────────────────────────
@@ -370,14 +371,13 @@ class NetMonitor:
     def _keep_window_visible(self):
         """Use Windows API to keep window always visible."""
         try:
-            hwnd = windll.kernel32.GetForegroundWindow()
-            if hwnd:
-                windll.user32.SetWindowPos(
-                    c_void_p(hwnd),
-                    HWND_TOPMOST,
-                    0, 0, 0, 0,
-                    SWP_NOSIZE | SWP_NOZORDER
-                )
+            hwnd = self.root.winfo_id()
+            windll.user32.SetWindowPos(
+                c_void_p(hwnd),
+                HWND_TOPMOST,
+                0, 0, 0, 0,
+                SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+            )
         except Exception:
             pass
 
